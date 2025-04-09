@@ -13,6 +13,8 @@ extension UTType {
     }
 }
 
+
+
 struct ScrubDocument: FileDocument {
     var documentTitle: String = ""
     var preachDate: Date = Date()
