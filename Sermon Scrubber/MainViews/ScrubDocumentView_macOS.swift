@@ -12,18 +12,12 @@ import SwiftUI
 extension ScrubDocumentView {
     var macOSDocumentView: some View {
         NavigationView {
-            HSplitView {
                 sidebar
                     .frame(minWidth: 200)
                 
                 contentView
-                
-//                if showInspector {
-//                    InspectorView(document: $document)
-//                        .frame(minWidth: 250, idealWidth: 300)
-//                }
+
             
-            }
         }
         .toolbar {
             
