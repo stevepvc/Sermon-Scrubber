@@ -41,6 +41,7 @@ struct AudioFilePicker: UIViewControllerRepresentable {
     }
 }
 #else
+#if os(macOS)
 struct AudioFilePicker: View {
     let onFileSelected: (URL) -> Void
     
@@ -53,13 +54,13 @@ struct AudioFilePicker: View {
             if panel.runModal() == .OK, let url = panel.url {
                 print("selected:", url)
                 onFileSelected(url)
-                
             }
         }
         .buttonStyle(.borderedProminent)
         .padding()
     }
 }
+#endif
 #endif
 
 #if os(iOS)

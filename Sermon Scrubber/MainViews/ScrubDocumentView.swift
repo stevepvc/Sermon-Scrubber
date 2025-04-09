@@ -43,6 +43,11 @@ struct ScrubDocumentView: View {
         if document.documentTitle.isEmpty {
             document.documentTitle = url.deletingPathExtension().lastPathComponent
         }
+        // Dismiss the file picker
+        showingFilePicker = false
+        
+        // Optionally auto-start transcription
+        transcribeAudio()
     }
     
     func transcribeAudio() {
