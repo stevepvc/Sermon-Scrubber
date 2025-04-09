@@ -2,10 +2,6 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>Sermon Scrub needs access to the microphone to process audio</string>
-	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>Sermon Scrub needs access to speech recognition to transcribe audio files</string>
 	<key>CFBundleDocumentTypes</key>
 	<array>
 		<dict>
@@ -34,6 +30,10 @@
 	<key>UTExportedTypeDeclarations</key>
 	<array>
 		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>com.apple.package</string>
+			</array>
 			<key>UTTypeDescription</key>
 			<string>Sermon Scrub Document</string>
 			<key>UTTypeIcons</key>
