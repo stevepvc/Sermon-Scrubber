@@ -51,10 +51,13 @@ struct AudioFilePicker: View {
             panel.allowsMultipleSelection = false
             
             if panel.runModal() == .OK, let url = panel.url {
+                print("selected:", url)
                 onFileSelected(url)
+                
             }
         }
         .buttonStyle(.borderedProminent)
+        .padding()
     }
 }
 #endif

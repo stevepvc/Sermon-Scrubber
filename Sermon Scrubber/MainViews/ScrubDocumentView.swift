@@ -16,7 +16,7 @@ struct ScrubDocumentView: View {
     @State var showingNewVersionDialog = false
     @State var newVersionTitle = ""
     @State var showingShareSheet = false
-    @State var showInspector = true
+    @State var showInspector = false
     
     // Computed properties
     var selectedVersion: ContentVersion? {

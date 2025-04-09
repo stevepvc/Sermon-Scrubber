@@ -98,36 +98,36 @@ extension ScrubDocumentView {
                     .foregroundColor(.secondary)
             }
         }
-        .toolbar {
-            ToolbarItemGroup(placement: .primaryAction) {
-                if !document.versions.isEmpty {
-                    // Toggle inspector
-                    Button(action: {
-                        showInspector.toggle()
-                    }) {
-                        Label("Inspector", systemImage: showInspector ? "sidebar.right" : "sidebar.right.fill")
-                    }
-                    
-                    // New version button
-                    Button(action: {
-                        newVersionTitle = "New Version"
-                        showingNewVersionDialog = true
-                    }) {
-                        Label("New Version", systemImage: "plus")
-                    }
-                    
-                    // Share button
-                    Button(action: {
-                        if selectedVersion != nil {
-                            showingShareSheet = true
-                        }
-                    }) {
-                        Label("Share", systemImage: "square.and.arrow.up")
-                    }
-                    .disabled(selectedVersion == nil)
-                }
-            }
-        }
+//        .toolbar {
+//            ToolbarItemGroup(placement: .primaryAction) {
+//                if !document.versions.isEmpty {
+//                    // Toggle inspector
+//                    Button(action: {
+//                        showInspector.toggle()
+//                    }) {
+//                        Label("Inspector", systemImage: showInspector ? "sidebar.right" : "sidebar.right.fill")
+//                    }
+//                    
+//                    // New version button
+//                    Button(action: {
+//                        newVersionTitle = "New Version"
+//                        showingNewVersionDialog = true
+//                    }) {
+//                        Label("New Version", systemImage: "plus")
+//                    }
+//                    
+//                    // Share button
+//                    Button(action: {
+//                        if selectedVersion != nil {
+//                            showingShareSheet = true
+//                        }
+//                    }) {
+//                        Label("Share", systemImage: "square.and.arrow.up")
+//                    }
+//                    .disabled(selectedVersion == nil)
+//                }
+//            }
+//        }
     }
     
     // Transcription Progress View

@@ -18,14 +18,51 @@ extension ScrubDocumentView {
                 
                 contentView
                 
-                if showInspector {
-                    InspectorView(document: $document)
-                        .frame(minWidth: 250, idealWidth: 300)
-                }
+//                if showInspector {
+//                    InspectorView(document: $document)
+//                        .frame(minWidth: 250, idealWidth: 300)
+//                }
             
-            }.inspector(isPresented: $showInspector, content: InspectorView(document: $document))
+            }
+        }
+        .toolbar {
+            
+            ToolbarItemGroup(placement: .primaryAction) {
+                // Toggle inspector
+                Button(action: {
+                    showInspector.toggle()
+                }) {
+                    Label("Inspector", systemImage: "sidebar.right")
+                }
+                if !document.versions.isEmpty {
+                   
+                    
+                    
+                    // New version button
+                    Button(action: {
+                        newVersionTitle = "New Version"
+                        showingNewVersionDialog = true
+                    }) {
+                        Label("New Version", systemImage: "plus")
+                    }
+                    
+                    // Share button
+                    Button(action: {
+                        if selectedVersion != nil {
+                            showingShareSheet = true
+                        }
+                    }) {
+                        Label("Share", systemImage: "square.and.arrow.up")
+                    }
+                    .disabled(selectedVersion == nil)
+                }
+            }
+        }
+        .inspector(isPresented: $showInspector){
+            InspectorView(document: $document)
         }
         .sheet(isPresented: $showingFilePicker) {
+            
             AudioFilePicker { url in
                 handleAudioFile(url)
             }
