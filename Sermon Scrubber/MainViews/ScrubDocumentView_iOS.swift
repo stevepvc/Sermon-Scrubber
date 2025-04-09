@@ -5,57 +5,45 @@
 //  Created by Steven Hovater on 4/7/25.
 //
 // ScrubDocumentView_iOS.swift
+// ScrubDocumentView+iOS.swift
 import SwiftUI
-import UniformTypeIdentifiers
 
-struct ScrubDocumentView_iOS: View {
-    @StateObject private var viewModel: DocumentViewModel
-    
-    init(document: Binding<ScrubDocument>) {
-        _viewModel = StateObject(wrappedValue: DocumentViewModel(document: document))
-    }
-    
-    var body: some View {
+#if os(iOS)
+extension ScrubDocumentView {
+    var iOSDocumentView: some View {
         NavigationView {
-            SidebarView(viewModel: viewModel)
-            ContentView(viewModel: viewModel)
+            sidebar
+            contentView
             
-            // On iOS, inspector is conditionally displayed
-            if viewModel.showInspector {
-                InspectorView(document: viewModel.$document)
+            if showInspector {
+                InspectorView(document: $document)
             }
         }
-        .sheet(isPresented: $viewModel.showingFilePicker) {
+        .sheet(isPresented: $showingFilePicker) {
             AudioFilePicker { url in
-                viewModel.handleAudioFile(url)
+                handleAudioFile(url)
             }
         }
-        .sheet(isPresented: $viewModel.showingNewVersionDialog) {
-            CreateVersionDialog(viewModel: viewModel)
+        .sheet(isPresented: $showingNewVersionDialog) {
+            createVersionDialog
         }
-        .sheet(isPresented: $viewModel.showingShareSheet) {
-            if let content = viewModel.selectedVersion?.content {
-                let contentToShare = viewModel.document.metadataHeader() + content
+        .sheet(isPresented: $showingShareSheet) {
+            if let content = selectedVersion?.content {
+                let contentToShare = document.metadataHeader() + content
                 ShareSheet(items: [contentToShare])
             }
         }
         .onAppear {
             setupNotifications()
+            
+            // Default select first version
+            if !document.versions.isEmpty && selectedVersionID == nil {
+                selectedVersionID = document.versions[0].id
+            }
         }
         .onDisappear {
             NotificationCenter.default.removeObserver(self)
         }
     }
-    
-    private func setupNotifications() {
-        NotificationCenter.default.addObserver(forName: Notification.Name("CreateNewVersion"), object: nil, queue: .main) { _ in
-            viewModel.newVersionTitle = "New Version"
-            viewModel.showingNewVersionDialog = true
-        }
-        NotificationCenter.default.addObserver(forName: Notification.Name("TranscribeAudio"), object: nil, queue: .main) { _ in
-            if viewModel.document.audioURL != nil && !viewModel.transcriptionManager.isTranscribing {
-                viewModel.transcribeAudio()
-            }
-        }
-    }
 }
+#endif
