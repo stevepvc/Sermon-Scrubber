@@ -51,8 +51,9 @@ extension ScrubDocumentView {
                         }
                         .contextMenu {
                             Button("Rename") {
+                                versionToRename = version
                                 newVersionTitle = version.title
-                                showingNewVersionDialog = true
+                                showingRenameDialog = true
                             }
                             Button("Delete") {
                                 deleteVersion(id: version.id)
@@ -74,10 +75,21 @@ extension ScrubDocumentView {
             if transcriptionManager.isTranscribing {
                 transcriptionProgressView
             } else if let version = selectedVersion, let index = selectedVersionIndex {
-                // Editor for selected version
-                TextEditor(text: $document.versions[index].content)
-                    .font(.body)
-                    .padding()
+                // Editor for selected version with improved styling
+                VStack(alignment: .leading, spacing: 4) {
+                    TextEditor(text: $document.versions[index].content)
+                        .sermonTextStyle()
+                    
+                    // Word count display
+                    HStack {
+                        Spacer()
+                        Text("\(wordCount(text: document.versions[index].content)) words")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal)
+                    }
+                }
+                .padding()
             } else if document.audioURL == nil && document.originalTranscription.isEmpty {
                 dropZoneView
             } else if !document.originalTranscription.isEmpty && document.versions.isEmpty {
@@ -88,9 +100,19 @@ extension ScrubDocumentView {
                         .padding([.top, .horizontal])
                     
                     TextEditor(text: $document.originalTranscription)
-                        .font(.body)
-                        .padding()
+                        .sermonTextStyle()
+                        
+                    // Word count for original transcription
+                    HStack {
+                        Spacer()
+                        Text("\(wordCount(text: document.originalTranscription)) words")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal)
+                    }
+                    .padding(.bottom)
                 }
+                .padding()
             } else {
                 // Show instruction to select a version
                 Text("Select a version from the sidebar")
@@ -98,36 +120,13 @@ extension ScrubDocumentView {
                     .foregroundColor(.secondary)
             }
         }
-//        .toolbar {
-//            ToolbarItemGroup(placement: .primaryAction) {
-//                if !document.versions.isEmpty {
-//                    // Toggle inspector
-//                    Button(action: {
-//                        showInspector.toggle()
-//                    }) {
-//                        Label("Inspector", systemImage: showInspector ? "sidebar.right" : "sidebar.right.fill")
-//                    }
-//                    
-//                    // New version button
-//                    Button(action: {
-//                        newVersionTitle = "New Version"
-//                        showingNewVersionDialog = true
-//                    }) {
-//                        Label("New Version", systemImage: "plus")
-//                    }
-//                    
-//                    // Share button
-//                    Button(action: {
-//                        if selectedVersion != nil {
-//                            showingShareSheet = true
-//                        }
-//                    }) {
-//                        Label("Share", systemImage: "square.and.arrow.up")
-//                    }
-//                    .disabled(selectedVersion == nil)
-//                }
-//            }
-//        }
+    }
+
+    // Add this helper function to count words
+    func wordCount(text: String) -> Int {
+        let components = text.components(separatedBy: .whitespacesAndNewlines)
+        let words = components.filter { !$0.isEmpty }
+        return words.count
     }
     
     // Transcription Progress View
@@ -228,4 +227,59 @@ extension ScrubDocumentView {
         }
         .padding()
     }
+    
+    var renameVersionDialog: some View {
+        VStack(spacing: 20) {
+            Text("Rename Version")
+                .font(.headline)
+            
+            TextField("Version Title", text: $newVersionTitle)
+                .textFieldStyle(RoundedBorderTextFieldStyle())
+                .frame(width: 300)
+            
+            HStack {
+                Button("Cancel") {
+                    showingRenameDialog = false
+                    newVersionTitle = ""
+                    versionToRename = nil
+                }
+                
+                Button("Rename") {
+                    if let version = versionToRename,
+                       let index = document.versions.firstIndex(where: { $0.id == version.id }) {
+                        document.versions[index].title = newVersionTitle
+                    }
+                    showingRenameDialog = false
+                    newVersionTitle = ""
+                    versionToRename = nil
+                }
+                .disabled(newVersionTitle.isEmpty)
+            }
+        }
+        .padding()
+    }
 }
+
+extension TextEditor {
+    func sermonTextStyle() -> some View {
+        self
+            .font(.system(.body, design: .serif))
+            .lineSpacing(5)
+            .padding()
+            #if os(iOS) || os(visionOS)
+            .background(Color(UIColor.secondarySystemBackground))
+            #elseif os(macOS)
+            .background(Color(NSColor.windowBackgroundColor))
+            #endif
+            .cornerRadius(8)
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+            )
+            #if os(macOS)
+            .frame(minHeight: 300)
+            #endif
+    }
+}
+
+

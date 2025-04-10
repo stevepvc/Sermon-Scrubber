@@ -33,6 +33,9 @@ extension ScrubDocumentView {
                 ShareSheet(items: [contentToShare])
             }
         }
+        .sheet(isPresented: $showingRenameDialog) {
+            renameVersionDialog
+        }
         .onAppear {
             setupNotifications()
             

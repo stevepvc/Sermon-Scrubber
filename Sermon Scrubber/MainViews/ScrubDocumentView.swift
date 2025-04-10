@@ -17,6 +17,8 @@ struct ScrubDocumentView: View {
     @State var newVersionTitle = ""
     @State var showingShareSheet = false
     @State var showInspector = false
+    @State var showingRenameDialog = false
+    @State var versionToRename: ContentVersion?
     
     // Computed properties
     var selectedVersion: ContentVersion? {
@@ -38,6 +40,16 @@ struct ScrubDocumentView: View {
     }
     
     // Common functionality methods
+    
+    var currentWordCount: Int {
+        if let index = selectedVersionIndex {
+            return wordCount(text: document.versions[index].content)
+        } else if !document.originalTranscription.isEmpty && document.versions.isEmpty {
+            return wordCount(text: document.originalTranscription)
+        }
+        return 0
+    }
+    
     func handleAudioFile(_ url: URL) {
         document.audioURL = url
         if document.documentTitle.isEmpty {

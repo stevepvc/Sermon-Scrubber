@@ -64,6 +64,9 @@ extension ScrubDocumentView {
         .sheet(isPresented: $showingNewVersionDialog) {
             createVersionDialog
         }
+        .sheet(isPresented: $showingRenameDialog) {
+            renameVersionDialog
+        }
         .onAppear {
             setupNotifications()
             
