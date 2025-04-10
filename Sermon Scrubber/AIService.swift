@@ -121,13 +121,13 @@ class AIManager: ObservableObject {
         
         // Prepare the message payload
         let payload: [String: Any] = [
-            "model": "claude-3-haiku-20240307",
-            "max_tokens": 4000,
-            "system": systemInstructions,
+            "model": "claude-3-7-sonnet-20250219",
+            "max_tokens": 8000,
+            "temperature": 0.3,
             "messages": [
                 [
                     "role": "user",
-                    "content": "Here's a sermon transcript:\n\n\(text)\n\n\(prompt)"
+                    "content": "Here's a sermon transcript. Please edit it to improve readability while keeping all content and examples:\n\n\(text)"
                 ]
             ]
         ]
@@ -147,10 +147,14 @@ class AIManager: ObservableObject {
         }
         // Add this before checking status code in callClaudeAPI
         print("API token: \(apiKeyAnthropic)")
+        print("Request headers: \(request.allHTTPHeaderFields ?? [:])")
+
         print("Response status code: \(httpResponse.statusCode)")
         print("Response headers: \(httpResponse.allHeaderFields)")
         let responseText = String(data: data, encoding: .utf8) ?? "Could not decode response"
         print("Response body: \(responseText)")
+        print("Response body preview: \(String(data: data, encoding: .utf8)?.prefix(500) ?? "Unable to decode")")
+
         
         guard httpResponse.statusCode == 200 else {
             let errorText = String(data: data, encoding: .utf8) ?? "Unknown error"
