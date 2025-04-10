@@ -19,6 +19,8 @@ struct ScrubDocumentView: View {
     @State var showInspector = false
     @State var showingRenameDialog = false
     @State var versionToRename: ContentVersion?
+    @State var isTargeted = false
+
     
     // Computed properties
     var selectedVersion: ContentVersion? {

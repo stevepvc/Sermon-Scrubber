@@ -141,6 +141,16 @@ extension ScrubDocumentView {
                 .font(.caption)
                 .foregroundColor(.secondary)
             
+            // Add this to display the activity message
+            if !transcriptionManager.currentActivityMessage.isEmpty {
+                Text(transcriptionManager.currentActivityMessage)
+                    .font(.subheadline)
+                    .italic()
+                    .foregroundColor(.secondary)
+                    .animation(.easeInOut, value: transcriptionManager.currentActivityMessage)
+                    .padding(.vertical, 8)
+            }
+            
             // Transcription metadata form
             Form {
                 Section(header: Text("While you wait, enter sermon information:")) {
@@ -168,13 +178,19 @@ extension ScrubDocumentView {
         ZStack {
             RoundedRectangle(cornerRadius: 12)
                 .stroke(style: StrokeStyle(lineWidth: 2, dash: [10]))
-                .foregroundColor(.gray)
+                .foregroundColor(isTargeted ? .accentColor : .gray)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(isTargeted ? Color.accentColor.opacity(0.1) : Color.clear)
+                )
             
             VStack(spacing: 20) {
-                Image(systemName: "arrow.down.doc")
+                Image(systemName: isTargeted ? "arrow.down.doc.fill" : "arrow.down.doc")
                     .font(.system(size: 50))
+                    .foregroundColor(isTargeted ? .accentColor : .primary)
                 Text("Drop audio file here")
                     .font(.title2)
+                    .foregroundColor(isTargeted ? .accentColor : .primary)
                 Text("or click to browse")
                     .foregroundColor(.secondary)
             }
@@ -184,21 +200,44 @@ extension ScrubDocumentView {
         .onTapGesture {
             showingFilePicker = true
         }
-        #if os(macOS)
-        .onDrop(of: [UTType.audio.identifier], isTargeted: nil) { providers, _ in
+#if os(macOS)
+        .onDrop(of: [UTType.audio.identifier], isTargeted: $isTargeted) { providers, _ in
             guard let provider = providers.first else { return false }
             
-            provider.loadItem(forTypeIdentifier: UTType.audio.identifier, options: nil) { item, _ in
-                if let data = item as? Data,
-                   let url = URL(dataRepresentation: data, relativeTo: nil) {
-                    DispatchQueue.main.async {
-                        handleAudioFile(url)
+            // Use the NSItemProvider's loadFileRepresentation method which is more reliable
+            provider.loadFileRepresentation(forTypeIdentifier: UTType.audio.identifier) { url, error in
+                if let error = error {
+                    print("Error loading dropped file: \(error)")
+                    return
+                }
+                
+                guard let url = url else { return }
+                
+                // Create a copy of the file in a location we can access
+                let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+                let destinationURL = documentsDirectory.appendingPathComponent(url.lastPathComponent)
+                
+                do {
+                    // Remove any existing file
+                    if FileManager.default.fileExists(atPath: destinationURL.path) {
+                        try FileManager.default.removeItem(at: destinationURL)
                     }
+                    
+                    // Copy the file
+                    try FileManager.default.copyItem(at: url, to: destinationURL)
+                    
+                    // Now handle the file on the main thread
+                    DispatchQueue.main.async {
+                        self.handleAudioFile(destinationURL)
+                    }
+                } catch {
+                    print("Error copying dropped file: \(error)")
                 }
             }
+            
             return true
         }
-        #endif
+#endif
     }
     
     // Create Version Dialog
