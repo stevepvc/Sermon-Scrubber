@@ -120,7 +120,7 @@ struct InspectorView: View {
                             makePromptButton(
                                 title: "Clean Up",
                                 description: "Improve grammar and readability",
-                                prompt: "Clean up this transcription to make it read more like a written document. Improve grammar, remove filler words, and make the language flow better while preserving the original message."
+                                prompt: "Clean up this transcription to make it read more like a written document. Retain as much of the thought, language, structure, and rhetoric as possible. Improve grammar, remove filler words, and make the language flow better while preserving the original message. This is a light edit."
                             )
                             
                             makePromptButton(
