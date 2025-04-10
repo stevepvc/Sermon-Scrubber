@@ -122,7 +122,7 @@ class AIManager: ObservableObject {
         // Prepare the message payload
         let payload: [String: Any] = [
             "model": "claude-3-7-sonnet-20250219",
-            "max_tokens": 8000,
+            "max_tokens": 8192,
             "temperature": 0.3,
             "messages": [
                 [
