@@ -118,11 +118,15 @@ struct InspectorView: View {
                     VStack(alignment: .leading, spacing: 16) {
                         Group {
                             makePromptButton(
-                                title: "Clean Up",
-                                description: "Improve grammar and readability",
+                                title: "Clean Up and Condense",
+                                description: "Improve readability and condense",
+                                prompt: "Edit this text to improve readability. Fix grammar errors and remove filler words while condensing the content to about 1/3 of its original length."
+                            )
+
+                            makePromptButton(
+                                title: "Clean Up (Unabridged)",
+                                description: "Improve readability without condensing",
                                 prompt: "Edit this text to improve readability. Fix grammar errors and remove filler words while keeping the full length and all content intact."
-
-
                             )
                             
                             makePromptButton(
@@ -195,8 +199,16 @@ struct InspectorView: View {
                 }
                 
                 if aiManager.isProcessing {
-                    ProgressView()
-                        .padding()
+                    VStack {
+                        ProgressView(value: aiManager.progressPercentage)
+                            .padding()
+                        
+                        if !aiManager.progressMessage.isEmpty {
+                            Text(aiManager.progressMessage)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
                 }
                 
                 if let error = aiManager.errorMessage {
@@ -312,11 +324,18 @@ struct InspectorView: View {
         guard let version = selectedVersion else { return }
         
         Task {
-            if let result = await aiManager.processWithAI(text: version.content, prompt: prompt) {
+            // Determine if we should use caching based on the prompt type
+            let usesCaching = prompt.contains("keeping the full length and all content intact")
+            
+            if let result = await aiManager.processWithAI(text: version.content, prompt: prompt, usesCaching: usesCaching) {
                 await MainActor.run {
                     // Determine version type based on prompt
                     let versionType: ContentVersion.VersionType
-                    if prompt.contains("Clean up") {
+                    
+                    // Initialize versionType based on prompt content
+                    if prompt.contains("Clean up") && prompt.contains("keeping the full length and all content intact") {
+                        versionType = .cleanedUpUnabridged
+                    } else if prompt.contains("Clean up") {
                         versionType = .cleanedUp
                     } else if prompt.contains("Add headings") {
                         versionType = .withHeadings
@@ -338,14 +357,16 @@ struct InspectorView: View {
                         versionType = .custom
                     }
                     
-                    // Add the new version
+                    // Add the new version with the appropriate caches flag
                     let serviceName = aiManager.selectedService == .claude ? "Claude" : "ChatGPT"
                     let title = "\(versionType.defaultTitle) (\(serviceName))"
-                    document.addVersion(title: title, content: result, type: versionType)
+                    var newVersion = ContentVersion(title: title, content: result, dateCreated: Date(), versionType: versionType)
+                    newVersion.caches = usesCaching
+                    document.versions.append(newVersion)
                     
                     // Select the new version
-                    if let newVersion = document.versions.last {
-                        selectedVersionID = newVersion.id
+                    if let newVersionId = document.versions.last?.id {
+                        selectedVersionID = newVersionId
                     }
                 }
             }

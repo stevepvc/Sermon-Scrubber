@@ -24,6 +24,8 @@ class AIManager: ObservableObject {
     @Published var isProcessing = false
     @Published var selectedService: AIService.APIType?
     @Published var errorMessage: String?
+    @Published var progressMessage: String = ""
+    @Published var progressPercentage: Double = 0
     @AppStorage("apiKeyOpenAI") var apiKeyOpenAI = ""
     @AppStorage("apiKeyAnthropic") var apiKeyAnthropic = ""
     @AppStorage("preferredAIService") var preferredAIService = "Claude"
@@ -58,19 +60,23 @@ class AIManager: ObservableObject {
         )
     ]
     
-    func processWithAI(text: String, prompt: String) async -> String? {
+    func processWithAI(text: String, prompt: String, usesCaching: Bool = false) async -> String? {
         guard let serviceType = selectedService else { return nil }
         
         await MainActor.run {
             self.isProcessing = true
             self.errorMessage = nil
+            self.progressMessage = usesCaching ? "Preparing for unabridged processing..." : ""
+            self.progressPercentage = usesCaching ? 0.05 : 0
         }
         
         do {
-            let result = try await sendToAI(text: text, prompt: prompt, service: serviceType)
+            let result = try await sendToAI(text: text, prompt: prompt, service: serviceType, usesCaching: usesCaching)
             
             await MainActor.run {
                 self.isProcessing = false
+                self.progressMessage = ""
+                self.progressPercentage = 0
             }
             
             return result
@@ -78,15 +84,22 @@ class AIManager: ObservableObject {
             await MainActor.run {
                 self.isProcessing = false
                 self.errorMessage = "Error: \(error.localizedDescription)"
+                self.progressMessage = ""
+                self.progressPercentage = 0
             }
+            print("AI processing error: \(error)")
             return nil
         }
     }
     
-    func sendToAI(text: String, prompt: String, service: AIService.APIType) async throws -> String {
+    func sendToAI(text: String, prompt: String, service: AIService.APIType, usesCaching: Bool = false) async throws -> String {
         switch service {
         case .claude:
-            return try await callClaudeAPI(text: text, prompt: prompt)
+            if usesCaching {
+                return try await callClaudeAPIWithCaching(text: text, prompt: prompt)
+            } else {
+                return try await callClaudeAPI(text: text, prompt: prompt)
+            }
         case .chatGPT:
             return try await callChatGPTAPI(text: text, prompt: prompt)
         }
