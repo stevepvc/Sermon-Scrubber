@@ -18,14 +18,20 @@ struct SermonScrubApp: App {
             // Add custom commands for version management
             CommandGroup(after: .pasteboard) {
                 Divider()
-                
+
                 Button("Add New Version...") {
                     NotificationCenter.default.post(name: Notification.Name("CreateNewVersion"), object: nil)
                 }
                 .keyboardShortcut("n", modifiers: [.command, .shift])
-                
+
                 Divider()
-                
+
+                Button("Import Video Audio…") {
+                    NotificationCenter.default.post(name: Notification.Name("ImportVideoAudio"), object: nil)
+                }
+
+                Divider()
+
                 Button("Transcribe Audio") {
                     NotificationCenter.default.post(name: Notification.Name("TranscribeAudio"), object: nil)
                 }
