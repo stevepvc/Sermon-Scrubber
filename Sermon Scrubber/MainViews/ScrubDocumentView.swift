@@ -20,6 +20,7 @@ struct ScrubDocumentView: View {
     @State var showingRenameDialog = false
     @State var versionToRename: ContentVersion?
     @State var isTargeted = false
+    @State var showingVideoImport = false
 
     
     // Computed properties
@@ -118,6 +119,10 @@ struct ScrubDocumentView: View {
             if document.audioURL != nil && !transcriptionManager.isTranscribing {
                 transcribeAudio()
             }
+        }
+
+        NotificationCenter.default.addObserver(forName: Notification.Name("ImportVideoAudio"), object: nil, queue: .main) { _ in
+            showingVideoImport = true
         }
     }
 }

@@ -67,9 +67,14 @@ extension ScrubDocumentView {
         .sheet(isPresented: $showingRenameDialog) {
             renameVersionDialog
         }
+        .sheet(isPresented: $showingVideoImport) {
+            VideoAudioImportView(isPresented: $showingVideoImport) { url in
+                handleAudioFile(url)
+            }
+        }
         .onAppear {
             setupNotifications()
-            
+
             // Default select first version
             if !document.versions.isEmpty && selectedVersionID == nil {
                 selectedVersionID = document.versions[0].id

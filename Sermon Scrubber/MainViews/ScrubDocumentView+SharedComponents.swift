@@ -24,7 +24,11 @@ extension ScrubDocumentView {
                 Button(document.audioURL == nil ? "Select Audio File" : "Change Audio File") {
                     showingFilePicker = true
                 }
-                
+
+                Button("Import Audio From Video") {
+                    showingVideoImport = true
+                }
+
                 if document.audioURL != nil {
                     Button("Transcribe Audio") {
                         transcribeAudio()
