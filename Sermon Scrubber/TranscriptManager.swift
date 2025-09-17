@@ -14,7 +14,8 @@ class TranscriptionManager: ObservableObject {
     @Published var currentChunk = 0
     @Published var totalChunks = 0
     @Published var currentActivityMessage = ""
-    
+    @Published var usesModernTranscriber = false
+
     private let settings = AppSettings()
     private let speechRecognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
     private var activityTimer: Timer?
@@ -150,61 +151,135 @@ class TranscriptionManager: ObservableObject {
         guard await checkPermissions(), let recognizer = speechRecognizer, recognizer.isAvailable else {
             return "Speech recognition not available"
         }
-        
+
         await MainActor.run {
             self.isTranscribing = true
             self.transcriptionProgress = 0
             self.transcriptionText = ""
-            self.startActivityMessageTimer() // Start the timer when transcription begins
+            self.currentChunk = 0
+            self.totalChunks = 0
+            self.startActivityMessageTimer()
         }
-        
-        // Get audio length
+
         let asset = AVURLAsset(url: url)
         let duration = try? await asset.load(.duration)
         let durationSeconds = duration?.seconds ?? 0
-        
+
+        let finalTranscription: String
+
+        if #available(macOS 15.0, *) {
+            do {
+                finalTranscription = try await transcribeWithSpeechTranscriber(
+                    from: url,
+                    durationSeconds: durationSeconds
+                )
+            } catch {
+                print("Falling back to legacy speech recognizer: \(error)")
+                finalTranscription = await transcribeWithLegacyRecognizer(
+                    from: url,
+                    durationSeconds: durationSeconds
+                )
+            }
+        } else {
+            finalTranscription = await transcribeWithLegacyRecognizer(
+                from: url,
+                durationSeconds: durationSeconds
+            )
+        }
+
+        await MainActor.run {
+            self.isTranscribing = false
+            self.transcriptionProgress = 1.0
+            self.stopActivityMessageTimer()
+        }
+
+        return finalTranscription
+    }
+
+    @available(macOS 15.0, *)
+    private func transcribeWithSpeechTranscriber(from url: URL, durationSeconds: Double) async throws -> String {
+        var configuration = SpeechTranscriber.Configuration(locale: Locale(identifier: "en-US"))
+        configuration.taskHint = .dictation
+        configuration.addsPunctuation = settings.includePunctuation
+
+        let transcriber = try SpeechTranscriber(configuration: configuration)
+
+        await MainActor.run {
+            self.usesModernTranscriber = true
+            self.totalChunks = 100
+            self.currentChunk = 0
+        }
+
+        var finalText = ""
+
+        let observationTask = Task<String, Error> {
+            for try await transcription in transcriber.transcriptions {
+                finalText = transcription.formattedString
+
+                let processedDuration: Double
+                if let lastSegment = transcription.segments.last {
+                    processedDuration = lastSegment.timestamp + lastSegment.duration
+                } else {
+                    processedDuration = durationSeconds
+                }
+
+                let normalizedProgress = durationSeconds > 0
+                    ? min(processedDuration / durationSeconds, 1.0)
+                    : 0
+
+                await MainActor.run {
+                    self.transcriptionText = finalText
+                    self.transcriptionProgress = normalizedProgress
+                    self.currentChunk = Int(normalizedProgress * 100)
+                }
+            }
+
+            return finalText
+        }
+
+        try await transcriber.addAudioFile(at: url)
+        try await transcriber.finish()
+
+        let transcription = try await observationTask.value
+        return transcription
+    }
+
+    private func transcribeWithLegacyRecognizer(from url: URL, durationSeconds: Double) async -> String {
+        await MainActor.run {
+            self.usesModernTranscriber = false
+        }
+
         // Calculate chunks
         let chunkSize = TimeInterval(settings.chunkSizeInSeconds)
         let chunks = Int(ceil(durationSeconds / chunkSize))
-        
+
         await MainActor.run {
             self.totalChunks = chunks
             self.currentChunk = 0
         }
-        
-        // Use an array to collect transcription parts
+
         var transcriptionParts: [String] = []
-        
-        // Process each chunk
+
         for i in 0..<chunks {
             let startTime = Double(i) * chunkSize
             let endTime = min(startTime + chunkSize, durationSeconds)
-            
+
             await MainActor.run {
                 self.currentChunk = i + 1
-                self.transcriptionProgress = Double(i) / Double(chunks)
+                self.transcriptionProgress = Double(i) / Double(max(chunks, 1))
             }
-            
+
             let chunkTranscription = await transcribeChunk(url: url, startTime: startTime, endTime: endTime)
             transcriptionParts.append(chunkTranscription)
-            
-            // Create a temporary combined text for UI update
+
             let currentText = transcriptionParts.joined(separator: " ")
             await MainActor.run {
                 self.transcriptionText = currentText
+                self.transcriptionProgress = Double(i + 1) / Double(max(chunks, 1))
             }
         }
-        
-        // Combine all parts into the final result
-        let fullTranscription = transcriptionParts.joined(separator: " ")
-        
-        await MainActor.run {
-            self.isTranscribing = false
-            self.transcriptionProgress = 1.0
-            self.stopActivityMessageTimer() // Stop the timer when transcription is done
-        }
-        
-        return fullTranscription
+
+        return transcriptionParts.joined(separator: " ")
     }
     
     private func startActivityMessageTimer() {
