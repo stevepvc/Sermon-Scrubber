@@ -141,9 +141,15 @@ extension ScrubDocumentView {
             }
             .padding()
             
-            Text("Chunk \(transcriptionManager.currentChunk) of \(transcriptionManager.totalChunks)")
-                .font(.caption)
-                .foregroundColor(.secondary)
+            if transcriptionManager.usesModernTranscriber {
+                Text("Progress: \(Int(transcriptionManager.transcriptionProgress * 100))%")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            } else {
+                Text("Chunk \(transcriptionManager.currentChunk) of \(transcriptionManager.totalChunks)")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
             
             // Add this to display the activity message
             if !transcriptionManager.currentActivityMessage.isEmpty {
