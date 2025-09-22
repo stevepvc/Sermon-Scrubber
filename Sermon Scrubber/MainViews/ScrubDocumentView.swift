@@ -10,7 +10,6 @@ import SwiftUI
 struct ScrubDocumentView: View {
     @Binding var document: ScrubDocument
     @StateObject var transcriptionManager = TranscriptionManager()
-    @StateObject var settings = AppSettings()
     @State var showingFilePicker = false
     @State var selectedVersionID: UUID?
     @State var showingNewVersionDialog = false
