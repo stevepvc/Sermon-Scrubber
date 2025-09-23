@@ -165,27 +165,10 @@ class TranscriptionManager: ObservableObject {
         let duration = try? await asset.load(.duration)
         let durationSeconds = duration?.seconds ?? 0
 
-        let finalTranscription: String
-
-        if #available(macOS 15.0, *) {
-            do {
-                finalTranscription = try await transcribeWithSpeechTranscriber(
-                    from: url,
-                    durationSeconds: durationSeconds
-                )
-            } catch {
-                print("Falling back to legacy speech recognizer: \(error)")
-                finalTranscription = await transcribeWithLegacyRecognizer(
-                    from: url,
-                    durationSeconds: durationSeconds
-                )
-            }
-        } else {
-            finalTranscription = await transcribeWithLegacyRecognizer(
-                from: url,
-                durationSeconds: durationSeconds
-            )
-        }
+        let finalTranscription = await transcribeWithLegacyRecognizer(
+            from: url,
+            durationSeconds: durationSeconds
+        )
 
         await MainActor.run {
             self.isTranscribing = false
@@ -196,53 +179,6 @@ class TranscriptionManager: ObservableObject {
         return finalTranscription
     }
 
-    @available(macOS 15.0, *)
-    private func transcribeWithSpeechTranscriber(from url: URL, durationSeconds: Double) async throws -> String {
-        var configuration = SpeechTranscriber.Configuration(locale: Locale(identifier: "en-US"))
-        configuration.taskHint = .dictation
-        configuration.addsPunctuation = settings.includePunctuation
-
-        let transcriber = try SpeechTranscriber(configuration: configuration)
-
-        await MainActor.run {
-            self.usesModernTranscriber = true
-            self.totalChunks = 100
-            self.currentChunk = 0
-        }
-
-        var finalText = ""
-
-        let observationTask = Task<String, Error> {
-            for try await transcription in transcriber.transcriptions {
-                finalText = transcription.formattedString
-
-                let processedDuration: Double
-                if let lastSegment = transcription.segments.last {
-                    processedDuration = lastSegment.timestamp + lastSegment.duration
-                } else {
-                    processedDuration = durationSeconds
-                }
-
-                let normalizedProgress = durationSeconds > 0
-                    ? min(processedDuration / durationSeconds, 1.0)
-                    : 0
-
-                await MainActor.run {
-                    self.transcriptionText = finalText
-                    self.transcriptionProgress = normalizedProgress
-                    self.currentChunk = Int(normalizedProgress * 100)
-                }
-            }
-
-            return finalText
-        }
-
-        try await transcriber.addAudioFile(at: url)
-        try await transcriber.finish()
-
-        let transcription = try await observationTask.value
-        return transcription
-    }
 
     private func transcribeWithLegacyRecognizer(from url: URL, durationSeconds: Double) async -> String {
         await MainActor.run {

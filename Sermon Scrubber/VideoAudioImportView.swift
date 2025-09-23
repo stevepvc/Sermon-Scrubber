@@ -18,8 +18,10 @@ struct VideoAudioImportView: View {
     @State private var isExporting = false
     @State private var alertItem: ImportAlertItem?
     @State private var showFileImporter = false
+    @State private var currentPlayTime: Double = 0
 
     @State private var waveformTask: Task<Void, Never>?
+    @State private var playbackObserver: Any?
 
     private var minimumSelectionLength: Double {
         guard duration > 0 else { return 0.1 }
@@ -39,7 +41,9 @@ struct VideoAudioImportView: View {
                 }
             }
 
-            dropZone
+            if videoURL == nil {
+                dropZone
+            }
 
             if let videoURL, let player {
                 VStack(alignment: .leading, spacing: 12) {
@@ -49,6 +53,26 @@ struct VideoAudioImportView: View {
                     VideoPlayer(player: player)
                         .frame(height: 220)
                         .cornerRadius(8)
+                    
+                    HStack(spacing: 12) {
+                        Button("Start selection here.") {
+                            let time = player.currentTime().seconds
+                            if duration <= minimumSelectionLength {
+                                selectionStart = max(0, min(time, duration))
+                            } else {
+                                selectionStart = min(time, selectionEnd - minimumSelectionLength)
+                            }
+                        }
+                        
+                        Button("End selection here.") {
+                            let time = player.currentTime().seconds
+                            if duration <= minimumSelectionLength {
+                                selectionEnd = max(0, min(time, duration))
+                            } else {
+                                selectionEnd = max(time, selectionStart + minimumSelectionLength)
+                            }
+                        }
+                    }
 
                     waveformSection
                 }
@@ -71,12 +95,16 @@ struct VideoAudioImportView: View {
                 .buttonStyle(.borderedProminent)
             }
         }
-        .padding(24)
-        .frame(minWidth: 640, minHeight: 520)
+        .padding(32)
+        .frame(minWidth: 680, minHeight: 560)
         .fileImporter(isPresented: $showFileImporter, allowedContentTypes: [.movie], allowsMultipleSelection: false) { result in
             switch result {
-            case .success(let url):
-                prepareVideo(from: url)
+            case .success(let urls):
+                if let url = urls.first {
+                    prepareVideo(from: url)
+                } else {
+                    alertItem = ImportAlertItem(message: "No file selected.")
+                }
             case .failure(let error):
                 alertItem = ImportAlertItem(message: error.localizedDescription)
             }
@@ -86,6 +114,9 @@ struct VideoAudioImportView: View {
         }
         .onDisappear {
             waveformTask?.cancel()
+            if let observer = playbackObserver {
+                player?.removeTimeObserver(observer)
+            }
             player?.pause()
         }
     }
@@ -157,10 +188,11 @@ struct VideoAudioImportView: View {
                     samples: waveformSamples,
                     duration: duration,
                     minimumSelectionLength: minimumSelectionLength,
+                    currentPlayTime: currentPlayTime,
                     startTime: $selectionStart,
                     endTime: $selectionEnd
                 )
-                .frame(height: 140)
+                .frame(height: 120)
 
                 VStack(alignment: .leading, spacing: 12) {
                     HStack {
@@ -205,13 +237,27 @@ struct VideoAudioImportView: View {
 
     private func prepareVideo(from url: URL) {
         waveformTask?.cancel()
+        if let observer = playbackObserver {
+            player?.removeTimeObserver(observer)
+            playbackObserver = nil
+        }
+        
         videoURL = url
         player = AVPlayer(url: url)
+        currentPlayTime = 0
         isExporting = false
         let asset = AVAsset(url: url)
         duration = asset.duration.seconds
         selectionStart = 0
         selectionEnd = max(duration, 0)
+        
+        // Set up playback time observer
+        if let player = player {
+            let interval = CMTime(seconds: 0.1, preferredTimescale: 600)
+            playbackObserver = player.addPeriodicTimeObserver(forInterval: interval, queue: .main) { time in
+                currentPlayTime = time.seconds
+            }
+        }
 
         if duration > 0 {
             isLoadingWaveform = true
@@ -220,7 +266,7 @@ struct VideoAudioImportView: View {
 
             waveformTask = Task.detached(priority: .userInitiated) {
                 do {
-                    let samples = try WaveformGenerator.generateSamples(for: targetAsset, targetSamples: 600)
+                    let samples = try await WaveformGenerator.generateSamples(for: targetAsset, targetSamples: 600)
                     if Task.isCancelled { return }
                     await MainActor.run {
                         waveformSamples = samples
@@ -322,24 +368,10 @@ private struct ImportAlertItem: Identifiable {
 }
 
 private enum WaveformGenerator {
-    static func generateSamples(for asset: AVAsset, targetSamples: Int) throws -> [Float] {
+    static func generateSamples(for asset: AVAsset, targetSamples: Int) async throws -> [Float] {
         guard targetSamples > 0 else { return [] }
 
-        let semaphore = DispatchSemaphore(value: 0)
-
-        asset.loadValuesAsynchronously(forKeys: ["tracks"]) {
-            semaphore.signal()
-        }
-
-        semaphore.wait()
-
-        var error: NSError?
-        let status = asset.statusOfValue(forKey: "tracks", error: &error)
-
-        if status != .loaded {
-            if let error { throw error }
-            throw WaveformError.unableToLoadTracks
-        }
+        let _ = try await asset.load(.tracks)
 
         guard let audioTrack = asset.tracks(withMediaType: .audio).first else {
             return []
@@ -358,9 +390,14 @@ private enum WaveformGenerator {
         reader.add(output)
 
         var sampleRate: Double = 44100
-        if let formatDescription = audioTrack.formatDescriptions.first as? CMAudioFormatDescription,
-           let asbd = CMAudioFormatDescriptionGetStreamBasicDescription(formatDescription)?.pointee {
-            sampleRate = asbd.mSampleRate
+        do {
+            let formatDescriptions = try await audioTrack.load(.formatDescriptions)
+            if let formatDescription = formatDescriptions.first,
+               let asbd = CMAudioFormatDescriptionGetStreamBasicDescription(formatDescription)?.pointee {
+                sampleRate = asbd.mSampleRate
+            }
+        } catch {
+            // Keep default sampleRate if loading format descriptions fails
         }
 
         let totalSamplesEstimate = max(1, Int(sampleRate * asset.duration.seconds))
@@ -456,7 +493,6 @@ private enum WaveformGenerator {
     }
 
     private enum WaveformError: Error {
-        case unableToLoadTracks
         case unableToStartReader
     }
 }
@@ -465,6 +501,7 @@ private struct WaveformTimelineView: View {
     var samples: [Float]
     var duration: Double
     var minimumSelectionLength: Double
+    var currentPlayTime: Double
     @Binding var startTime: Double
     @Binding var endTime: Double
 
@@ -511,6 +548,13 @@ private struct WaveformTimelineView: View {
                         .fill(Color.accentColor)
                         .frame(width: 3, height: height)
                         .offset(x: endX - 1.5)
+                    
+                    // Playhead indicator
+                    let playheadX = CGFloat(currentPlayTime / duration) * width
+                    Rectangle()
+                        .fill(Color.red)
+                        .frame(width: 2, height: height)
+                        .offset(x: playheadX - 1)
                 }
             }
             .contentShape(Rectangle())
