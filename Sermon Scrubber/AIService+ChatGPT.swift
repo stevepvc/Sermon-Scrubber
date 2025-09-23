@@ -22,6 +22,8 @@ extension AIManager {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("Bearer \(apiKeyOpenAI)", forHTTPHeaderField: "Authorization")
         
+        let modelName = "gpt-4o"
+
         // Define system instructions for sermon processing
         let systemContent = """
         You are an expert in communication, rhetoric, and homiletics. You can take the raw transcription of a sermon, and understand it as a record of a form of oral communication. You can take such a transcription and clean it up, so that it becomes a piece of written communication. You can take out artifacts like vocalized pauses, or needless repetition. You can take sentence fragments and revise or complete them so that they make more intelligible written communication. You can tell when a word clearly doesn't fit the context and must have been a transcription error.
@@ -36,7 +38,7 @@ extension AIManager {
         
         // Prepare the message payload
         let payload: [String: Any] = [
-            "model": "gpt-4o",
+            "model": modelName,
             "max_tokens": 4000,
             "messages": [
                 [
@@ -74,6 +76,22 @@ extension AIManager {
            let firstChoice = choices.first,
            let message = firstChoice["message"] as? [String: Any],
            let content = message["content"] as? String {
+            if let usage = json["usage"] as? [String: Any] {
+                let promptTokens = usage.integerValue(forKey: "prompt_tokens") ?? 0
+                let completionTokens = usage.integerValue(forKey: "completion_tokens") ?? 0
+
+                AIUsageTracker.shared.recordUsage(
+                    provider: .openAI,
+                    model: modelName,
+                    inputTokens: promptTokens,
+                    outputTokens: completionTokens,
+                    metadata: [
+                        "endpoint": "chat.completions",
+                        "prompt_character_count": "\(text.count)",
+                        "prompt_identifier": String(prompt.prefix(32))
+                    ]
+                )
+            }
             return content
         } else {
             // Try to extract error message if possible
