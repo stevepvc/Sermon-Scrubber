@@ -13,6 +13,8 @@ extension AIManager {
             throw NSError(domain: "AI Error", code: 401, userInfo: [NSLocalizedDescriptionKey: "API key not configured"])
         }
         
+        let modelName = "claude-3-7-sonnet-20250219"
+
         // Create the request URL
         let url = URL(string: "https://api.anthropic.com/v1/messages")!
         var request = URLRequest(url: url)
@@ -37,7 +39,7 @@ extension AIManager {
         
         // Prepare the message payload
         let payload: [String: Any] = [
-            "model": "claude-3-7-sonnet-20250219",
+            "model": modelName,
             "max_tokens": 8192,
             "temperature": 0.3,
             "system": systemInstructions,
@@ -71,8 +73,25 @@ extension AIManager {
         if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
            let content = json["content"] as? [[String: Any]],
            let firstItem = content.first(where: { ($0["type"] as? String) == "text" }),
-           let text = firstItem["text"] as? String {
-            return text
+           let cleanedText = firstItem["text"] as? String {
+            if let usage = json["usage"] as? [String: Any] {
+                let inputTokens = usage.integerValue(forKey: "input_tokens") ?? 0
+                let outputTokens = usage.integerValue(forKey: "output_tokens") ?? 0
+
+                AIUsageTracker.shared.recordUsage(
+                    provider: .anthropic,
+                    model: modelName,
+                    inputTokens: inputTokens,
+                    outputTokens: outputTokens,
+                    metadata: [
+                        "endpoint": "messages",
+                        "mode": "single",
+                        "input_character_count": "\(text.count)",
+                        "output_character_count": "\(cleanedText.count)"
+                    ]
+                )
+            }
+            return cleanedText
         } else {
             // Try to extract error message if possible
             let errorText = String(data: data, encoding: .utf8) ?? "Could not parse response"
@@ -85,7 +104,9 @@ extension AIManager {
         guard !apiKeyAnthropic.isEmpty else {
             throw NSError(domain: "AI Error", code: 401, userInfo: [NSLocalizedDescriptionKey: "API key not configured"])
         }
-        
+
+        let modelName = "claude-3-7-sonnet-20250219"
+
         // Update progress
         await MainActor.run {
             self.progressMessage = "Preparing transcript for processing..."
@@ -149,7 +170,7 @@ extension AIManager {
             
             // Prepare the payload for this chunk
             let payload: [String: Any] = [
-                "model": "claude-3-7-sonnet-20250219",
+                "model": modelName,
                 "max_tokens": 4096,
                 "temperature": 0.2,
                 "system": systemInstructions,
@@ -183,10 +204,29 @@ extension AIManager {
                 // Parse the response
                 if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
                     print("Successfully got response for chunk \(index + 1)")
-                    
+
                     if let content = json["content"] as? [[String: Any]],
                        let firstItem = content.first(where: { ($0["type"] as? String) == "text" }),
                        let processedText = firstItem["text"] as? String {
+                        if let usage = json["usage"] as? [String: Any] {
+                            let inputTokens = usage.integerValue(forKey: "input_tokens") ?? 0
+                            let outputTokens = usage.integerValue(forKey: "output_tokens") ?? 0
+
+                            AIUsageTracker.shared.recordUsage(
+                                provider: .anthropic,
+                                model: modelName,
+                                inputTokens: inputTokens,
+                                outputTokens: outputTokens,
+                                metadata: [
+                                    "endpoint": "messages",
+                                    "mode": "chunked",
+                                    "chunk_index": "\(index + 1)",
+                                    "total_chunks": "\(totalChunks)",
+                                    "chunk_character_count": "\(chunk.count)",
+                                    "processed_character_count": "\(processedText.count)"
+                                ]
+                            )
+                        }
                         processedChunks.append(processedText)
                         print("Successfully processed chunk \(index + 1) - Result: \(processedText.count) characters")
                     } else {
@@ -242,7 +282,7 @@ extension AIManager {
             
             // Prepare the final payload
             let finalPayload: [String: Any] = [
-                "model": "claude-3-7-sonnet-20250219",
+                "model": modelName,
                 "max_tokens": 4096,
                 "temperature": 0.2,
                 "system": systemInstructions,
@@ -282,7 +322,25 @@ extension AIManager {
                let content = json["content"] as? [[String: Any]],
                let firstItem = content.first(where: { ($0["type"] as? String) == "text" }),
                let finalText = firstItem["text"] as? String {
-                
+                if let usage = json["usage"] as? [String: Any] {
+                    let inputTokens = usage.integerValue(forKey: "input_tokens") ?? 0
+                    let outputTokens = usage.integerValue(forKey: "output_tokens") ?? 0
+
+                    AIUsageTracker.shared.recordUsage(
+                        provider: .anthropic,
+                        model: modelName,
+                        inputTokens: inputTokens,
+                        outputTokens: outputTokens,
+                        metadata: [
+                            "endpoint": "messages",
+                            "mode": "final_pass",
+                            "total_chunks": "\(totalChunks)",
+                            "combined_character_count": "\(combinedResult.count)",
+                            "final_character_count": "\(finalText.count)"
+                        ]
+                    )
+                }
+
                 print("Successfully completed unabridged cleaning with final pass")
                 
                 // Update progress to complete
@@ -349,6 +407,8 @@ extension AIManager {
     }
     private func processWithSmallerChunks(text: String, prompt: String, systemInstructions: String) async throws -> String {
         print("Attempting to process with ultra-small chunks")
+
+        let modelName = "claude-3-7-sonnet-20250219"
         
         // Split into much smaller chunks - 1000 characters each
         let smallChunks = splitTextIntoChunks(text, maxChunkSize: 1000)
@@ -379,7 +439,7 @@ extension AIManager {
             
             // Simple payload for small chunks
             let payload: [String: Any] = [
-                "model": "claude-3-7-sonnet-20250219",
+                "model": modelName,
                 "max_tokens": 2048,
                 "temperature": 0.2,
                 "system": systemInstructions,
@@ -396,15 +456,34 @@ extension AIManager {
             
             do {
                 let (data, response) = try await makeRequestWithRetry(request: request, maxRetries: 3, chunk: index + 1)
-                
+
                 guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
                     continue  // Skip this chunk if it fails
                 }
-                
+
                 if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                    let content = json["content"] as? [[String: Any]],
                    let firstItem = content.first(where: { ($0["type"] as? String) == "text" }),
                    let processedText = firstItem["text"] as? String {
+                    if let usage = json["usage"] as? [String: Any] {
+                        let inputTokens = usage.integerValue(forKey: "input_tokens") ?? 0
+                        let outputTokens = usage.integerValue(forKey: "output_tokens") ?? 0
+
+                        AIUsageTracker.shared.recordUsage(
+                            provider: .anthropic,
+                            model: modelName,
+                            inputTokens: inputTokens,
+                            outputTokens: outputTokens,
+                            metadata: [
+                                "endpoint": "messages",
+                                "mode": "micro_chunk",
+                                "chunk_index": "\(index + 1)",
+                                "total_chunks": "\(smallChunks.count)",
+                                "chunk_character_count": "\(chunk.count)",
+                                "processed_character_count": "\(processedText.count)"
+                            ]
+                        )
+                    }
                     processedSmallChunks.append(processedText)
                     print("Successfully processed micro-chunk \(index + 1)")
                 } else {
