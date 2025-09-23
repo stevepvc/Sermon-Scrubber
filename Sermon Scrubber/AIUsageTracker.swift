@@ -31,6 +31,19 @@ struct ProviderUsageSummary {
     let estimatedCostInUSD: Double
 }
 
+struct ModelUsageSummary: Identifiable {
+    let provider: AIUsageEntry.Provider
+    let model: String
+    let requestCount: Int
+    let inputTokens: Int
+    let outputTokens: Int
+    let estimatedCostInUSD: Double
+
+    var id: String { "\(provider.rawValue)-\(model)" }
+
+    var providerDisplayName: String { provider.displayName }
+}
+
 struct MonthlyUsageSummary {
     let monthStartDate: Date
     let totalRequests: Int
@@ -134,6 +147,46 @@ final class AIUsageTracker {
 
     func usageEntries() -> [AIUsageEntry] {
         queue.sync { cachedEntries }
+    }
+
+    func modelUsageBreakdown() -> [ModelUsageSummary] {
+        queue.sync {
+            struct ModelKey: Hashable {
+                let provider: AIUsageEntry.Provider
+                let model: String
+            }
+
+            var aggregation: [ModelKey: (requests: Int, input: Int, output: Int, cost: Double)] = [:]
+
+            for entry in cachedEntries {
+                let key = ModelKey(provider: entry.provider, model: entry.model)
+                var data = aggregation[key] ?? (requests: 0, input: 0, output: 0, cost: 0)
+                data.requests += 1
+                data.input += entry.inputTokens
+                data.output += entry.outputTokens
+                data.cost += entry.calculatedCostInUSD ?? 0
+                aggregation[key] = data
+            }
+
+            return aggregation
+                .map { key, data in
+                    ModelUsageSummary(
+                        provider: key.provider,
+                        model: key.model,
+                        requestCount: data.requests,
+                        inputTokens: data.input,
+                        outputTokens: data.output,
+                        estimatedCostInUSD: data.cost
+                    )
+                }
+                .sorted { lhs, rhs in
+                    if lhs.providerDisplayName == rhs.providerDisplayName {
+                        return lhs.model.localizedCaseInsensitiveCompare(rhs.model) == .orderedAscending
+                    }
+
+                    return lhs.providerDisplayName < rhs.providerDisplayName
+                }
+        }
     }
 
     func clearHistory() {
