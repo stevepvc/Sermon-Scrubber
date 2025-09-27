@@ -59,7 +59,7 @@ struct SettingsView: View {
                             HStack {
                                 Text("Output Tokens: \(summary.outputTokens.formatted())")
                                 Spacer()
-                                Text("Estimated Cost: \(summary.estimatedCostInUSD, format: .currency(code: \"USD\"))")
+                                Text("Estimated Cost: $ \(summary.estimatedCostInUSD)")
                             }
                             .font(.subheadline)
                             .foregroundColor(.secondary)
