@@ -149,51 +149,23 @@ struct InspectorView: View {
                 .font(.headline)
             
             ForEach(aiManager.availableServices) { service in
-                Button(action: {
-                    handleInitialServiceSelection(service.apiType)
-                }) {
-                    HStack {
-                        Image(systemName: service.apiType.iconName)
-                            .font(.largeTitle)
-                            .foregroundColor(.accentColor)
-                            .frame(width: 50)
+                serviceOptionButton(
+                    for: service,
+                    isSelected: selectedModelSource == service.apiType,
+                    action: { handleInitialServiceSelection(service.apiType) }
+                )
 
-                        VStack(alignment: .leading) {
-                            Text(service.name)
-                                .font(.headline)
-                            Text(service.description)
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                    .padding()
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .cornerRadius(8)
-                    // With:
-                    #if os(iOS)
-                    .background(Color(UIColor.systemGray6))
-                    #else
-                    .background(Color(NSColor.windowBackgroundColor))
-                    #endif
-                }
-                .buttonStyle(PlainButtonStyle())
             }
         }
     }
     
     var aiInteractionView: some View {
         VStack(alignment: .leading, spacing: 16) {
-            if let selectedService = aiManager.selectedService {
-                Picker("Model Source", selection: Binding(
-                    get: { selectedService },
-                    set: { handleServiceSelection($0) }
-                )) {
-                    ForEach(AIService.APIType.allCases) { option in
-                        Text(option.displayName).tag(option)
-                    }
-                }
-                .pickerStyle(.segmented)
-            }
+
+            modelSourceSelectionList
+                .padding(.bottom, 8)
+
+
 
             if document.versions.isEmpty {
                 Text("Create a transcript first")
@@ -399,6 +371,22 @@ struct InspectorView: View {
         )
     }
 
+    private var modelSourceSelectionList: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Model Source")
+                .font(.headline)
+
+            ForEach(aiManager.availableServices) { service in
+                serviceOptionButton(
+                    for: service,
+                    isSelected: selectedModelSource == service.apiType,
+                    action: { handleServiceSelection(service.apiType) }
+                )
+            }
+        }
+    }
+
+
     private var subscriberStatusFooter: some View {
         VStack(alignment: .leading, spacing: 12) {
             if let remaining = currentRemainingBalance {
@@ -477,6 +465,64 @@ struct InspectorView: View {
         }
         .padding(.vertical)
     }
+
+    private var defaultServiceBackground: Color {
+        #if os(iOS)
+        return Color(UIColor.systemGray6)
+        #else
+        return Color(NSColor.windowBackgroundColor)
+        #endif
+    }
+
+    @ViewBuilder
+    private func serviceOptionButton(
+        for service: AIService,
+        isSelected: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: service.apiType.iconName)
+                    .font(.title2)
+                    .foregroundColor(.accentColor)
+                    .frame(width: 32)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(service.name)
+                        .font(.headline)
+
+                    Text(service.description)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    if aiManager.requiresAPIKey(for: service.apiType) && !aiManager.isConfigured(for: service.apiType) {
+                        Text("API key required")
+                            .font(.caption2)
+                            .foregroundColor(.red)
+                    }
+                }
+
+                Spacer()
+
+                if isSelected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(.accentColor)
+                }
+            }
+            .padding()
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .buttonStyle(.plain)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(isSelected ? Color.accentColor.opacity(0.15) : defaultServiceBackground)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(isSelected ? Color.accentColor : Color.clear, lineWidth: 2)
+        )
+    }
+
 
     private var byoStatusFooter: some View {
         HStack {
