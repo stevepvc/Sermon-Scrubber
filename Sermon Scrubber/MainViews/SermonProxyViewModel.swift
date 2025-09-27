@@ -24,6 +24,7 @@ public final class SermonProxyViewModel: ObservableObject {
     @Published public private(set) var lastOutputText: String = ""
     @Published public private(set) var lastIdempotencyKey: String = ""
     @Published public private(set) var errorMessage: String?
+    @Published public private(set) var lastErrorCode: Int?
 
     // Telemetry
     public let usageLog = UsageLog()
@@ -82,6 +83,7 @@ public final class SermonProxyViewModel: ObservableObject {
         replayBanner = false
         errorMessage = nil
         lastOutputText = ""
+        lastErrorCode = nil
 
         // Snapshot before
         let before = (try? await ProxyAPI.preflight(http: http, token: token))
@@ -95,8 +97,11 @@ public final class SermonProxyViewModel: ObservableObject {
             temperature: temperature
         )
 
+        let idempotencyKey = UUID().uuidString
+        self.lastIdempotencyKey = idempotencyKey
+
         do {
-            let res = try await ProxyAPI.generate(http: http, token: token, input: input)
+            let res = try await ProxyAPI.generate(http: http, token: token, input: input, explicitIdempotencyKey: idempotencyKey)
             self.lastIdempotencyKey = res.idempotencyKey
             self.replayBanner = res.replay
 
@@ -128,6 +133,7 @@ public final class SermonProxyViewModel: ObservableObject {
             usageLog.append(entry)
 
             isLoading = false
+            lastErrorCode = nil
             return GenerateResultUI(
                 text: extracted,
                 replay: res.replay,
@@ -140,14 +146,19 @@ public final class SermonProxyViewModel: ObservableObject {
         } catch let ProxyError.insufficientBalance(message, _) {
             isLoading = false
             self.errorMessage = "Balance is insufficient.\n\(message)\nConsider offering a Booster flow."
+            self.lastErrorCode = 402
             return nil
         } catch let ProxyError.conflictProcessing(message, _) {
             isLoading = false
             self.errorMessage = "Another request with the same idempotency key is still processing.\n\(message)"
+            self.lastErrorCode = 409
             return nil
         } catch {
             isLoading = false
             self.errorMessage = error.localizedDescription
+            if case let HTTPError.non2xx(status, _, _) = error {
+                self.lastErrorCode = status
+            }
             return nil
         }
     }

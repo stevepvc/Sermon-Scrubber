@@ -9,10 +9,13 @@ import SwiftUI
 
 @main
 struct SermonScrubApp: App {
+    @StateObject private var sermonProxyViewModel = SermonProxyViewModel()
+
     var body: some Scene {
         DocumentGroup(newDocument: ScrubDocument()) { file in
             ScrubDocumentView(document: file.$document)
                 .frame(minWidth: 800, minHeight: 600)
+                .environmentObject(sermonProxyViewModel)
         }
         .commands {
             // Add custom commands for version management
@@ -42,6 +45,7 @@ struct SermonScrubApp: App {
         #if os(macOS)
         Settings {
             SettingsView()
+                .environmentObject(sermonProxyViewModel)
         }
         #endif
     }
