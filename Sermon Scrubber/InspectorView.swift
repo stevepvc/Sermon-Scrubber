@@ -154,14 +154,18 @@ struct InspectorView: View {
                     isSelected: selectedModelSource == service.apiType,
                     action: { handleInitialServiceSelection(service.apiType) }
                 )
+
             }
         }
     }
     
     var aiInteractionView: some View {
         VStack(alignment: .leading, spacing: 16) {
+
             modelSourceSelectionList
                 .padding(.bottom, 8)
+
+
 
             if document.versions.isEmpty {
                 Text("Create a transcript first")
@@ -382,6 +386,7 @@ struct InspectorView: View {
         }
     }
 
+
     private var subscriberStatusFooter: some View {
         VStack(alignment: .leading, spacing: 12) {
             if let remaining = currentRemainingBalance {
@@ -517,6 +522,7 @@ struct InspectorView: View {
                 .stroke(isSelected ? Color.accentColor : Color.clear, lineWidth: 2)
         )
     }
+
 
     private var byoStatusFooter: some View {
         HStack {
